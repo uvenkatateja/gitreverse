@@ -1,36 +1,34 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# GitReverse
 
-## Getting Started
+https://github.com/user-attachments/assets/f0cdb7b2-c6f0-4483-8a01-153170479f2e
 
-First, run the development server:
+Turn a **public GitHub repository** into a **single synthetic user prompt** that someone might paste into Cursor, Claude Code, Codex, etc. to vibe code the project from scratch.
+
+The app pulls **repo metadata**, a **root file tree** (depth 1), and the **README**, then uses an LLM via [OpenRouter](https://openrouter.ai/) to produce one short, conversational prompt grounded in that context.
+
+Paste a GitHub URL or `owner/repo` on the home page. You can also open **`/owner/repo`** (e.g. `/vercel/next.js`) for a shareable link that runs the same flow.
+
+## Stack
+
+Next.js (App Router), React, TypeScript, Tailwind CSS, GitHub API, OpenRouter.
+
+## Configuration
+
+Copy `.env.example` to `.env.local`. You need **`OPENROUTER_API_KEY`**. Optional: `OPENROUTER_MODEL` (defaults to `google/gemini-2.5-pro`), `GITHUB_TOKEN` for better GitHub rate limits, and Supabase env vars from the example file if you want server-side caching.
+
+## Development
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+pnpm install
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+pnpm build
+pnpm start
+pnpm lint
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Pull requests are appreciated!
