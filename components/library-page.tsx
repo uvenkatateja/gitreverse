@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 type PromptEntry = {
   id: number;
@@ -353,15 +354,21 @@ export function LibraryPage({ initialData, initialTotal }: LibraryPageProps) {
 }
 
 function PromptCard({ entry }: { entry: PromptEntry }) {
+  const router = useRouter();
+  const href = `/${encodeURIComponent(entry.owner)}/${encodeURIComponent(entry.repo)}`;
   const truncated =
     entry.prompt.length > 160
       ? entry.prompt.slice(0, 160).trimEnd() + "…"
       : entry.prompt;
 
   return (
-    <Link
-      href={`/${encodeURIComponent(entry.owner)}/${encodeURIComponent(entry.repo)}`}
-      className="group relative block"
+    <div
+      className="group relative block cursor-pointer"
+      onClick={() => router.push(href)}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") router.push(href); }}
+      role="link"
+      tabIndex={0}
+      aria-label={`${entry.owner}/${entry.repo}`}
     >
       <div className="absolute inset-0 translate-x-1.5 translate-y-1.5 rounded-xl bg-zinc-900 transition-transform group-hover:translate-x-2 group-hover:translate-y-2" />
       <div className="relative z-10 flex h-full flex-col gap-3 rounded-xl border-[3px] border-zinc-900 bg-white p-4 transition-transform group-hover:-translate-x-0.5 group-hover:-translate-y-0.5">
@@ -402,6 +409,6 @@ function PromptCard({ entry }: { entry: PromptEntry }) {
           </span>
         </div>
       </div>
-    </Link>
+    </div>
   );
 }

@@ -1,6 +1,8 @@
 import { getSupabase } from "@/lib/supabase";
 import { LibraryPage } from "@/components/library-page";
 
+export const dynamic = "force-dynamic";
+
 export const metadata = {
   title: "Prompt Library — GitReverse",
   description:
