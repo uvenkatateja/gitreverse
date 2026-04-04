@@ -17,13 +17,6 @@ export const metadata: Metadata = {
   title: "GitReverse",
   description:
     "Turn a GitHub repository into a plain-language coding agent prompt.",
-  icons: {
-    icon: [
-      { url: "/favicon.ico", sizes: "any" },
-      { url: "/icon.png", type: "image/png", sizes: "192x192" },
-      { url: "/icon.svg", type: "image/svg+xml" },
-    ],
-  },
 };
 
 export default function RootLayout({
