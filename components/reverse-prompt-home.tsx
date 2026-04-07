@@ -2,19 +2,23 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { HOME_EXAMPLES } from "@/lib/home-example-repos";
+import { HOME_EXAMPLES, isHomeExampleRepo } from "@/lib/home-example-repos";
 import { parseGitHubRepoInput } from "@/lib/parse-github-repo";
 
 type ReversePromptHomeProps = {
   initialRepoInput?: string;
   autoSubmit?: boolean;
   initialPrompt?: string;
+  owner?: string;
+  repo?: string;
 };
 
 export function ReversePromptHome({
   initialRepoInput = "",
   autoSubmit = false,
   initialPrompt,
+  owner,
+  repo,
 }: ReversePromptHomeProps) {
   const [repoUrl, setRepoUrl] = useState(initialRepoInput);
   const [loading, setLoading] = useState(false);
@@ -81,6 +85,35 @@ export function ReversePromptHome({
     autoSubmitStartedRef.current = true;
     void runReversePrompt(trimmed);
   }, [autoSubmit, initialRepoInput, runReversePrompt]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const o = owner?.trim();
+    const r = repo?.trim();
+    if (!o || !r) return;
+    if (isHomeExampleRepo(o, r)) return;
+
+    const key = `viewed__${o}__${r}`;
+    const existing = localStorage.getItem(key);
+    if (existing === "1" || existing === "pending") return;
+
+    localStorage.setItem(key, "pending");
+    void fetch("/api/increment-views", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ owner: o, repo: r }),
+    })
+      .then((res) => {
+        if (!res.ok) {
+          localStorage.removeItem(key);
+          return;
+        }
+        localStorage.setItem(key, "1");
+      })
+      .catch(() => {
+        localStorage.removeItem(key);
+      });
+  }, [owner, repo]);
 
   useEffect(() => {
     if (!prompt) return;
