@@ -15,7 +15,7 @@ type PromptEntry = {
 
 type SortOption = "trending" | "newest" | "oldest";
 
-const SORT_OPTIONS: SortOption[] = ["trending", "newest", "oldest"];
+const SORT_OPTIONS: SortOption[] = ["newest", "trending", "oldest"];
 
 const SORT_LABELS: Record<SortOption, string> = {
   trending: "Trending",
@@ -46,7 +46,7 @@ type LibraryPageProps = {
 
 export function LibraryPage({ initialData, initialTotal }: LibraryPageProps) {
   const [search, setSearch] = useState("");
-  const [sort, setSort] = useState<SortOption>("trending");
+  const [sort, setSort] = useState<SortOption>("newest");
   const [entries, setEntries] = useState<PromptEntry[]>(initialData);
   const [total, setTotal] = useState(initialTotal);
   const [page, setPage] = useState(0);
@@ -104,7 +104,7 @@ export function LibraryPage({ initialData, initialTotal }: LibraryPageProps) {
   // Re-sync after mount so view counts (and other fields) are not stale from
   // RSC/router cache when returning from a repo page.
   useEffect(() => {
-    void fetchPage("", "trending", 0, false);
+    void fetchPage("", "newest", 0, false);
   }, [fetchPage]);
 
   async function handleLoadMore() {
