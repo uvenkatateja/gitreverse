@@ -16,6 +16,14 @@ Next.js (App Router), React, TypeScript, Tailwind CSS, GitHub API, OpenRouter.
 
 Copy `.env.example` to `.env.local`. You need **`OPENROUTER_API_KEY`**. Optional: `OPENROUTER_MODEL` (defaults to `google/gemini-2.5-pro`), `GITHUB_TOKEN` for better GitHub rate limits, and Supabase env vars from the example file if you want server-side caching.
 
+### Custom reverse (optional)
+
+For **deep / focus** prompts (clone + agent reads real files), run the **custom_reverse** TypeScript service locally (see that project’s `README`; `pnpm dev`, default port **3001**). In `.env.local` set:
+
+`CUSTOM_REVERSE_SERVICE_URL=http://localhost:3001`
+
+Then enable **Custom reverse** on the home page and describe what to reverse-engineer.
+
 ## Development
 
 ```bash

@@ -37,6 +37,10 @@ export function ReversePromptHome({
   repo,
 }: ReversePromptHomeProps) {
   const [repoUrl, setRepoUrl] = useState(initialRepoInput);
+  const [customReverse, setCustomReverse] = useState(false);
+  const [customPrompt, setCustomPrompt] = useState("");
+  /** Keeps result card title accurate if user toggles mode after a run */
+  const [lastResultWasCustom, setLastResultWasCustom] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rateLimited, setRateLimited] = useState(false);
@@ -71,6 +75,52 @@ export function ReversePromptHome({
       }
       if (typeof data.prompt === "string") {
         setPrompt(data.prompt);
+        setLastResultWasCustom(false);
+        const parsed = parseGitHubRepoInput(input);
+        if (parsed && typeof window !== "undefined") {
+          window.history.replaceState(
+            null,
+            "",
+            `/${encodeURIComponent(parsed.owner)}/${encodeURIComponent(parsed.repo)}`
+          );
+        }
+      } else {
+        setError("No prompt in response.");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Request failed");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const runCustomReverse = useCallback(async (input: string, focus: string) => {
+    setError(null);
+    setRateLimited(false);
+    setPrompt("");
+    setCopied(false);
+    setLoading(true);
+    try {
+      const res = await fetch("/api/custom-reverse", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ repoUrl: input, customPrompt: focus }),
+      });
+      const data = (await res.json()) as {
+        prompt?: string;
+        error?: string;
+      };
+      if (!res.ok) {
+        if (res.status === 429) {
+          setRateLimited(true);
+          return;
+        }
+        setError(data.error ?? `Request failed (${res.status})`);
+        return;
+      }
+      if (typeof data.prompt === "string") {
+        setPrompt(data.prompt);
+        setLastResultWasCustom(true);
         const parsed = parseGitHubRepoInput(input);
         if (parsed && typeof window !== "undefined") {
           window.history.replaceState(
@@ -91,7 +141,12 @@ export function ReversePromptHome({
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    void runReversePrompt(repoUrl.trim());
+    const trimmed = repoUrl.trim();
+    if (customReverse) {
+      void runCustomReverse(trimmed, customPrompt.trim());
+    } else {
+      void runReversePrompt(trimmed);
+    }
   }
 
   useEffect(() => {
@@ -101,6 +156,8 @@ export function ReversePromptHome({
     autoSubmitStartedRef.current = true;
     void runReversePrompt(trimmed);
   }, [autoSubmit, initialRepoInput, runReversePrompt]);
+
+  /* Custom reverse requires an explicit prompt — do not auto-submit on shared links. */
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -301,58 +358,87 @@ export function ReversePromptHome({
               onSubmit={onSubmit}
               className="relative z-10 rounded-xl border-[3px] border-zinc-900 bg-[#fff4da] p-6"
             >
-              <div className="flex flex-col gap-3 sm:flex-row">
-                <div className="relative flex-1">
-                  <div className="absolute inset-0 translate-x-1 translate-y-1 rounded bg-zinc-900" />
-                  <input
-                    name="repoUrl"
-                    autoComplete="off"
-                    className="relative z-10 w-full rounded border-[3px] border-zinc-900 bg-white px-4 py-3 text-base text-zinc-900 placeholder-zinc-500 focus:outline-none"
-                    placeholder="https://github.com/…"
-                    value={repoUrl}
-                    onChange={(e) => setRepoUrl(e.target.value)}
-                    required
-                  />
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch">
+                  <div className="relative min-w-0 flex-1">
+                    <div className="absolute inset-0 translate-x-1 translate-y-1 rounded bg-zinc-900" />
+                    <input
+                      name="repoUrl"
+                      autoComplete="off"
+                      className="relative z-10 w-full rounded border-[3px] border-zinc-900 bg-white px-4 py-3 text-base text-zinc-900 placeholder-zinc-500 focus:outline-none"
+                      placeholder="https://github.com/…"
+                      value={repoUrl}
+                      onChange={(e) => setRepoUrl(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="group relative w-full shrink-0 sm:w-auto">
+                    <div className="absolute inset-0 translate-x-1 translate-y-1 rounded bg-zinc-800" />
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      aria-busy={loading}
+                      className={`relative z-10 flex w-full items-center justify-center gap-2 rounded border-[3px] border-zinc-900 px-6 py-3 font-medium text-white transition-transform group-hover:-translate-x-px group-hover:-translate-y-px disabled:pointer-events-none sm:min-w-[10rem] ${
+                        loading ? "bg-[#b5120e]" : "bg-[#d31611]"
+                      }`}
+                    >
+                      {loading ? (
+                        <>
+                          <svg
+                            className="h-5 w-5 shrink-0 animate-spin text-white"
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            aria-hidden
+                          >
+                            <circle
+                              className="opacity-25"
+                              cx="12"
+                              cy="12"
+                              r="10"
+                              stroke="currentColor"
+                              strokeWidth="4"
+                            />
+                            <path
+                              className="opacity-75"
+                              fill="currentColor"
+                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                            />
+                          </svg>
+                          <span>Processing…</span>
+                        </>
+                      ) : customReverse ? (
+                        "Custom Reverse"
+                      ) : (
+                        "Get Prompt"
+                      )}
+                    </button>
+                  </div>
                 </div>
-                <div className="group relative shrink-0">
-                  <div className="absolute inset-0 translate-x-1 translate-y-1 rounded bg-zinc-800" />
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    aria-busy={loading}
-                    className={`relative z-10 flex w-full items-center justify-center gap-2 rounded border-[3px] border-zinc-900 px-6 py-3 font-medium text-white transition-transform group-hover:-translate-x-px group-hover:-translate-y-px disabled:pointer-events-none ${
-                      loading ? "bg-[#b5120e]" : "bg-[#d31611]"
-                    }`}
-                  >
-                    {loading ? (
-                      <>
-                        <svg
-                          className="h-5 w-5 shrink-0 animate-spin text-white"
-                          xmlns="http://www.w3.org/2000/svg"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          aria-hidden
-                        >
-                          <circle
-                            className="opacity-25"
-                            cx="12"
-                            cy="12"
-                            r="10"
-                            stroke="currentColor"
-                            strokeWidth="4"
-                          />
-                          <path
-                            className="opacity-75"
-                            fill="currentColor"
-                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                          />
-                        </svg>
-                        <span>Processing…</span>
-                      </>
-                    ) : (
-                      "Get Prompt"
-                    )}
-                  </button>
+                <div className="flex w-full flex-col gap-2">
+                  <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-zinc-800">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-[2px] border-zinc-900"
+                      checked={customReverse}
+                      onChange={(e) => setCustomReverse(e.target.checked)}
+                    />
+                    Custom reverse (deep focus — needs local agent service)
+                  </label>
+                  {customReverse ? (
+                    <div className="relative w-full">
+                      <div className="absolute inset-0 translate-x-1 translate-y-1 rounded bg-zinc-900" />
+                      <textarea
+                        name="customPrompt"
+                        rows={4}
+                        className="relative z-10 w-full resize-y rounded border-[3px] border-zinc-900 bg-white px-4 py-3 text-base text-zinc-900 placeholder-zinc-500 focus:outline-none"
+                        placeholder="What to reverse? e.g. How do API routes work in this repo?"
+                        value={customPrompt}
+                        onChange={(e) => setCustomPrompt(e.target.value)}
+                        required={customReverse}
+                      />
+                    </div>
+                  ) : null}
                 </div>
               </div>
 
@@ -421,7 +507,9 @@ export function ReversePromptHome({
             <section className="relative z-10 rounded-xl border-[3px] border-zinc-900 bg-[#fafafa] p-6">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                 <h2 className="text-sm font-semibold text-zinc-700">
-                  Reverse engineered prompt
+                  {lastResultWasCustom
+                    ? "Custom reverse prompt"
+                    : "Reverse engineered prompt"}
                 </h2>
                 <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
                   {reverseEngineeredRepo ? (
