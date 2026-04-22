@@ -439,7 +439,7 @@ export function ReversePromptHome({
                         name="customPrompt"
                         rows={4}
                         className="relative z-10 w-full resize-y rounded border-[3px] border-zinc-900 bg-white px-4 py-3 text-base text-zinc-900 placeholder-zinc-500 focus:outline-none"
-                        placeholder="Focus on a specific feature or ask for detailed prompt"
+                        placeholder="ask for detailed prompt or focus on a specific feature"
                         value={customPrompt}
                         onChange={(e) => setCustomPrompt(e.target.value)}
                         required={customReverse}
