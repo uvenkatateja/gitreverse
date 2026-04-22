@@ -414,8 +414,6 @@ export function ReversePromptHome({
                           </svg>
                           <span>Processing…</span>
                         </>
-                      ) : customReverse ? (
-                        "Custom Reverse"
                       ) : (
                         "Get Prompt"
                       )}
@@ -432,7 +430,7 @@ export function ReversePromptHome({
                         onCustomReverseCheckboxChange(e.target.checked)
                       }
                     />
-                    Custom reverse
+                    Manual control
                   </label>
                   {customReverse ? (
                     <div className="relative w-full">
@@ -441,7 +439,7 @@ export function ReversePromptHome({
                         name="customPrompt"
                         rows={4}
                         className="relative z-10 w-full resize-y rounded border-[3px] border-zinc-900 bg-white px-4 py-3 text-base text-zinc-900 placeholder-zinc-500 focus:outline-none"
-                        placeholder="What to reverse? e.g. How do API routes work in this repo?"
+                        placeholder="Focus on a specific feature or ask for detailed prompt"
                         value={customPrompt}
                         onChange={(e) => setCustomPrompt(e.target.value)}
                         required={customReverse}
@@ -517,7 +515,7 @@ export function ReversePromptHome({
               <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                 <h2 className="text-sm font-semibold text-zinc-700">
                   {lastResultWasCustom
-                    ? "Custom reverse prompt"
+                    ? "Manual control prompt"
                     : "Reverse engineered prompt"}
                 </h2>
                 <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">

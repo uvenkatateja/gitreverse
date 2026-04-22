@@ -89,8 +89,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error: isAbort
-          ? "Custom reverse timed out. Try a smaller repo or a narrower prompt."
-          : `Custom reverse service unreachable (${msg}). Check CUSTOM_REVERSE_SERVICE_URL and that the service is running.`,
+          ? "Manual control timed out. Try a smaller repo or a narrower prompt."
+          : `Manual control service unreachable (${msg}). Check CUSTOM_REVERSE_SERVICE_URL and that the service is running.`,
       },
       { status: 503 }
     );
@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
     data = await res.json();
   } catch {
     return NextResponse.json(
-      { error: "Custom reverse service returned invalid JSON." },
+      { error: "Manual control service returned invalid JSON." },
       { status: 502 }
     );
   }
@@ -130,7 +130,7 @@ export async function POST(request: NextRequest) {
 
   if (!prompt) {
     return NextResponse.json(
-      { error: "Custom reverse service did not return a prompt." },
+      { error: "Manual control service did not return a prompt." },
       { status: 502 }
     );
   }
