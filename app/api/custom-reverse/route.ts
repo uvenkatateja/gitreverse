@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import http from "node:http";
+import https from "node:https";
+import { URL } from "node:url";
 import { parseGitHubRepoInput } from "@/lib/parse-github-repo";
 import { getSupabase } from "@/lib/supabase";
+
+export const runtime = "nodejs";
 
 const DEFAULT_CUSTOM_REVERSE_URL = "http://localhost:3001";
 
@@ -10,8 +15,58 @@ function getServiceUrl(): string {
   );
 }
 
-/** Long-running upstream request; allow up to 10 minutes. */
-const FETCH_TIMEOUT_MS = 600_000;
+/** 15 min hard cap — route-level abort. */
+const ROUTE_TIMEOUT_MS = 900_000;
+
+/**
+ * Raw http.request with no socket/headers timeout (Node default is 0 = none).
+ * Needed because global fetch (Undici) has a 5-minute headersTimeout by default,
+ * which causes "fetch failed" on runs that take longer before sending any response.
+ */
+function httpPost(
+  url: string,
+  body: string
+): Promise<{ status: number; json: unknown }> {
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(url);
+    const isHttps = parsed.protocol === "https:";
+    const lib = isHttps ? https : http;
+
+    const req = lib.request(
+      {
+        hostname: parsed.hostname,
+        port: parsed.port || (isHttps ? 443 : 80),
+        path: parsed.pathname + parsed.search,
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Content-Length": Buffer.byteLength(body),
+        },
+        timeout: 0, // no socket inactivity timeout
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on("data", (chunk: Buffer) => chunks.push(chunk));
+        res.on("end", () => {
+          const text = Buffer.concat(chunks).toString("utf8");
+          let json: unknown;
+          try {
+            json = JSON.parse(text);
+          } catch {
+            reject(new Error(`Upstream returned non-JSON: ${text.slice(0, 200)}`));
+            return;
+          }
+          resolve({ status: res.statusCode ?? 0, json });
+        });
+        res.on("error", reject);
+      }
+    );
+
+    req.on("error", reject);
+    req.write(body);
+    req.end();
+  });
+}
 
 function persistCustomPromptCache(opts: {
   repoUrl: string;
@@ -41,7 +96,7 @@ function persistCustomPromptCache(opts: {
 }
 
 export async function POST(request: NextRequest) {
-  let body: { repoUrl?: string; customPrompt?: string };
+  let body: { repoUrl?: string; customPrompt?: string; mode?: string };
   try {
     body = await request.json();
   } catch {
@@ -50,6 +105,7 @@ export async function POST(request: NextRequest) {
 
   const repoUrl = body.repoUrl;
   const customPrompt = body.customPrompt;
+  const isDeep = body.mode === "deep";
 
   if (typeof repoUrl !== "string" || !repoUrl.trim()) {
     return NextResponse.json(
@@ -57,7 +113,10 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
   }
-  if (typeof customPrompt !== "string" || !customPrompt.trim()) {
+  if (
+    !isDeep &&
+    (typeof customPrompt !== "string" || !customPrompt.trim())
+  ) {
     return NextResponse.json(
       { error: "customPrompt is required (string)" },
       { status: 400 }
@@ -66,29 +125,37 @@ export async function POST(request: NextRequest) {
 
   const base = getServiceUrl().replace(/\/$/, "");
 
-  let res: Response;
+  const upstreamBody: { repoUrl: string; customPrompt?: string; mode?: "deep" } =
+    {
+      repoUrl: repoUrl.trim(),
+    };
+  if (isDeep) {
+    upstreamBody.mode = "deep";
+  } else {
+    upstreamBody.customPrompt = customPrompt!.trim();
+  }
+
+  let upstreamStatus: number;
+  let data: unknown;
   try {
-    const controller = new AbortController();
-    const t = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-    try {
-      res = await fetch(`${base}/reverse`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          repoUrl: repoUrl.trim(),
-          customPrompt: customPrompt.trim(),
-        }),
-        signal: controller.signal,
-      });
-    } finally {
-      clearTimeout(t);
-    }
+    const timer = new Promise<never>((_, reject) =>
+      setTimeout(
+        () => reject(new Error("__timeout__")),
+        ROUTE_TIMEOUT_MS
+      )
+    );
+    const result = await Promise.race([
+      httpPost(`${base}/reverse`, JSON.stringify(upstreamBody)),
+      timer,
+    ]);
+    upstreamStatus = result.status;
+    data = result.json;
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    const isAbort = e instanceof Error && e.name === "AbortError";
+    const isTimeout = msg === "__timeout__";
     return NextResponse.json(
       {
-        error: isAbort
+        error: isTimeout
           ? "Manual control timed out. Try a smaller repo or a narrower prompt."
           : `Manual control service unreachable (${msg}). Check CUSTOM_REVERSE_SERVICE_URL and that the service is running.`,
       },
@@ -96,27 +163,17 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  let data: unknown;
-  try {
-    data = await res.json();
-  } catch {
-    return NextResponse.json(
-      { error: "Manual control service returned invalid JSON." },
-      { status: 502 }
-    );
-  }
-
-  if (!res.ok) {
+  if (upstreamStatus < 200 || upstreamStatus >= 300) {
     const err =
       data &&
       typeof data === "object" &&
       "error" in data &&
       typeof (data as { error: unknown }).error === "string"
         ? (data as { error: string }).error
-        : `Request failed (${res.status})`;
+        : `Request failed (${upstreamStatus})`;
     return NextResponse.json(
       { error: err },
-      { status: res.status >= 400 && res.status < 600 ? res.status : 502 }
+      { status: upstreamStatus >= 400 && upstreamStatus < 600 ? upstreamStatus : 502 }
     );
   }
 
@@ -137,7 +194,7 @@ export async function POST(request: NextRequest) {
 
   persistCustomPromptCache({
     repoUrl: repoUrl.trim(),
-    focus: customPrompt.trim(),
+    focus: isDeep ? "[deep] whole codebase" : customPrompt!.trim(),
     prompt,
   });
 
