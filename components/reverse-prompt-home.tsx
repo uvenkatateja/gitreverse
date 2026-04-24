@@ -94,53 +94,59 @@ export function ReversePromptHome({
     }
   }, []);
 
-  const runCustomReverse = useCallback(async (input: string, focus: string) => {
-    setError(null);
-    setRateLimited(false);
-    setPrompt("");
-    setCopied(false);
-    setLoading(true);
-    try {
-      const res = await fetch("/api/custom-reverse", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          repoUrl: input,
-          customPrompt: focus,
-        }),
-      });
-      const data = (await res.json()) as {
-        prompt?: string;
-        error?: string;
-      };
-      if (!res.ok) {
-        if (res.status === 429) {
-          setRateLimited(true);
+  const runCustomReverse = useCallback(
+    async (input: string, focusOrDeep: string | { mode: "deep" }) => {
+      setError(null);
+      setRateLimited(false);
+      setPrompt("");
+      setCopied(false);
+      setLoading(true);
+      try {
+        const isDeep =
+          typeof focusOrDeep === "object" && focusOrDeep.mode === "deep";
+        const res = await fetch("/api/custom-reverse", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(
+            isDeep
+              ? { repoUrl: input, mode: "deep" as const }
+              : { repoUrl: input, customPrompt: focusOrDeep as string }
+          ),
+        });
+        const data = (await res.json()) as {
+          prompt?: string;
+          error?: string;
+        };
+        if (!res.ok) {
+          if (res.status === 429) {
+            setRateLimited(true);
+            return;
+          }
+          setError(data.error ?? `Request failed (${res.status})`);
           return;
         }
-        setError(data.error ?? `Request failed (${res.status})`);
-        return;
-      }
-      if (typeof data.prompt === "string") {
-        setPrompt(data.prompt);
-        setLastResultWasCustom(true);
-        const parsed = parseGitHubRepoInput(input);
-        if (parsed && typeof window !== "undefined") {
-          window.history.replaceState(
-            null,
-            "",
-            `/${encodeURIComponent(parsed.owner)}/${encodeURIComponent(parsed.repo)}`
-          );
+        if (typeof data.prompt === "string") {
+          setPrompt(data.prompt);
+          setLastResultWasCustom(true);
+          const parsed = parseGitHubRepoInput(input);
+          if (parsed && typeof window !== "undefined") {
+            window.history.replaceState(
+              null,
+              "",
+              `/${encodeURIComponent(parsed.owner)}/${encodeURIComponent(parsed.repo)}`
+            );
+          }
+        } else {
+          setError("No prompt in response.");
         }
-      } else {
-        setError("No prompt in response.");
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Request failed");
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Request failed");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    },
+    []
+  );
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -561,6 +567,26 @@ export function ReversePromptHome({
               <pre className="max-h-[min(70vh,32rem)] overflow-auto whitespace-pre-wrap rounded-lg border border-zinc-200 bg-white p-4 text-sm leading-relaxed text-zinc-800">
                 {prompt}
               </pre>
+              {!lastResultWasCustom && !loading ? (
+                <p className="mt-4 text-center text-sm text-zinc-600">
+                  Want more depth?{" "}
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    className="cursor-pointer font-medium text-zinc-900 underline decoration-zinc-400 underline-offset-2 transition-colors hover:text-zinc-950"
+                    onClick={() =>
+                      void runCustomReverse(repoUrl.trim(), { mode: "deep" })
+                    }
+                    onKeyDown={(e) => {
+                      if (e.key !== "Enter" && e.key !== " ") return;
+                      e.preventDefault();
+                      void runCustomReverse(repoUrl.trim(), { mode: "deep" });
+                    }}
+                  >
+                    Deep Reverse
+                  </span>
+                </p>
+              ) : null}
             </section>
           </div>
         ) : null}
