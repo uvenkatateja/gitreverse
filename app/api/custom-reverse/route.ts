@@ -375,7 +375,7 @@ async function executeCustomReverseStream(opts: {
     focus
   );
 
-  return new Response(toClient, {
+  return new NextResponse(toClient, {
     status: 200,
     headers: {
       "Content-Type": "text/event-stream; charset=utf-8",
