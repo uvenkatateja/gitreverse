@@ -387,64 +387,6 @@ export function ReversePromptHome({
     if (typeof window === "undefined") return;
     const o = owner?.trim();
     const r = repo?.trim();
-    if (!o || !r) return;
-
-    const slot = historySlotFromProps(
-      preserveUrl,
-      autoSubmitDeep,
-      autoSubmitFocus,
-      initialManualFocus,
-      initialGenerationKind
-    );
-
-    const raw = localStorage.getItem(GITREVERSE_HISTORY_KEY);
-    let arr: GitreverseHistoryEntry[] = [];
-    if (raw) {
-      try {
-        const parsed = JSON.parse(raw) as unknown;
-        arr = Array.isArray(parsed) ? (parsed as GitreverseHistoryEntry[]) : [];
-      } catch {
-        arr = [];
-      }
-    }
-    const idx = arr.findIndex(
-      (e) => e.owner === o && e.repo === r && historySlotOf(e) === slot
-    );
-    const prev = idx !== -1 ? arr[idx] : undefined;
-    const prevPreview = prev?.promptPreview;
-    const prevGen = prev?.lastGenerationType;
-    const prevFocus = prev?.lastManualFocus;
-    const entry: GitreverseHistoryEntry = {
-      owner: o,
-      repo: r,
-      historySlot: slot,
-      visitedAt: new Date().toISOString(),
-      ...(prevPreview != null && prevPreview !== ""
-        ? { promptPreview: prevPreview }
-        : {}),
-      ...(prevGen ? { lastGenerationType: prevGen } : {}),
-      ...(prevFocus ? { lastManualFocus: prevFocus } : {}),
-    };
-    if (idx !== -1) arr.splice(idx, 1);
-    arr.unshift(entry);
-    localStorage.setItem(
-      GITREVERSE_HISTORY_KEY,
-      JSON.stringify(arr.slice(0, GITREVERSE_HISTORY_MAX))
-    );
-  }, [
-    owner,
-    repo,
-    preserveUrl,
-    autoSubmitDeep,
-    autoSubmitFocus,
-    initialManualFocus,
-    initialGenerationKind,
-  ]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const o = owner?.trim();
-    const r = repo?.trim();
     const p = prompt.trim();
     if (!o || !r || !p) return;
 

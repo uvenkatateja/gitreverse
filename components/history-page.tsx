@@ -91,7 +91,8 @@ export function HistoryPage() {
         return;
       }
       const list = parsed.filter(isHistoryEntry);
-      const sorted = [...list].sort(
+      const withPrompt = list.filter((e) => e.promptPreview?.trim());
+      const sorted = [...withPrompt].sort(
         (a, b) =>
           new Date(b.visitedAt).getTime() - new Date(a.visitedAt).getTime()
       );
