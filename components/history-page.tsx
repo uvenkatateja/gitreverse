@@ -10,8 +10,29 @@ type HistoryEntry = {
   owner: string;
   repo: string;
   visitedAt: string;
+  /** `quick`, `deep`, or `m:${focus}`; omitted in older localStorage rows (= quick). */
+  historySlot?: string;
   promptPreview?: string;
+  lastGenerationType?: "quick" | "deep" | "manual";
+  lastManualFocus?: string;
 };
+
+function historySlotOf(e: { historySlot?: string }): string {
+  return e.historySlot ?? "quick";
+}
+
+function historyHref(entry: HistoryEntry): string {
+  const o = encodeURIComponent(entry.owner);
+  const r = encodeURIComponent(entry.repo);
+  const slot = historySlotOf(entry);
+  if (slot === "deep") return `/${o}/${r}/deep`;
+  if (slot.startsWith("m:")) {
+    const focus = entry.lastManualFocus?.trim() || slot.slice(2);
+    if (!focus) return `/${o}/${r}`;
+    return `/${o}/${r}/${encodeURIComponent(focus)}`;
+  }
+  return `/${o}/${r}`;
+}
 
 function isHistoryEntry(x: unknown): x is HistoryEntry {
   if (
@@ -24,7 +45,20 @@ function isHistoryEntry(x: unknown): x is HistoryEntry {
     return false;
   }
   const pv = (x as HistoryEntry).promptPreview;
-  return pv === undefined || typeof pv === "string";
+  if (pv !== undefined && typeof pv !== "string") return false;
+  const gt = (x as HistoryEntry).lastGenerationType;
+  if (
+    gt !== undefined &&
+    gt !== "quick" &&
+    gt !== "deep" &&
+    gt !== "manual"
+  ) {
+    return false;
+  }
+  const mf = (x as HistoryEntry).lastManualFocus;
+  if (mf !== undefined && typeof mf !== "string") return false;
+  const hs = (x as HistoryEntry).historySlot;
+  return hs === undefined || typeof hs === "string";
 }
 
 function relativeTime(iso: string): string {
@@ -103,7 +137,7 @@ export function HistoryPage() {
             History
           </h1>
           <p className="text-zinc-600">
-            Repositories you opened recently on this device.
+            Your previously generated prompts.
           </p>
         </div>
 
@@ -123,7 +157,7 @@ export function HistoryPage() {
         ) : (
           <ul className="flex flex-col gap-4">
             {entries.map((e) => (
-              <li key={`${e.owner}/${e.repo}`}>
+              <li key={`${e.owner}/${e.repo}/${historySlotOf(e)}`}>
                 <HistoryCard entry={e} />
               </li>
             ))}
@@ -134,9 +168,30 @@ export function HistoryPage() {
   );
 }
 
+function generationBadge(entry: HistoryEntry): { label: string; title?: string } | null {
+  const t = entry.lastGenerationType;
+  if (t === "deep") {
+    return { label: "Deep", title: "Deep Reverse" };
+  }
+  if (t === "manual") {
+    const f = entry.lastManualFocus?.trim();
+    const short =
+      f && f.length > 48 ? `${f.slice(0, 48).trimEnd()}…` : f;
+    return {
+      label: short ? `Manual: ${short}` : "Manual",
+      title: f ?? "Manual control",
+    };
+  }
+  if (t === "quick") {
+    return { label: "Quick", title: "Quick reverse prompt" };
+  }
+  return null;
+}
+
 function HistoryCard({ entry }: { entry: HistoryEntry }) {
   const router = useRouter();
-  const href = `/${encodeURIComponent(entry.owner)}/${encodeURIComponent(entry.repo)}`;
+  const href = historyHref(entry);
+  const badge = generationBadge(entry);
 
   return (
     <div
@@ -159,6 +214,14 @@ function HistoryCard({ entry }: { entry: HistoryEntry }) {
             <p className="truncate text-base font-bold text-zinc-900">
               {entry.repo}
             </p>
+            {badge ? (
+              <span
+                className="mt-1 inline-block max-w-full truncate rounded border border-zinc-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-zinc-700"
+                title={badge.title}
+              >
+                {badge.label}
+              </span>
+            ) : null}
           </div>
           <a
             href={`https://github.com/${encodeURIComponent(entry.owner)}/${encodeURIComponent(entry.repo)}`}
